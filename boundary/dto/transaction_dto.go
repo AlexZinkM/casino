@@ -2,6 +2,7 @@ package dto
 
 import (
 	"casino/domain/entity"
+	"casino/utils"
 	"time"
 )
 
@@ -45,6 +46,7 @@ func (d *CreateTransactionDTO) FromEntity(entity *entity.Transaction) {
 
 func (d *CreateTransactionDTO) ToEntity() *entity.Transaction {
 	return &entity.Transaction{
+		ID:              utils.GenerateUUID(),
 		UserID:          d.UserID,
 		TransactionType: entity.TransactionType(d.TransactionType),
 		Amount:          d.Amount,

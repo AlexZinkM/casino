@@ -2,8 +2,6 @@ package entity
 
 import (
 	"time"
-
-	"casino/utils"
 )
 
 type TransactionType string
@@ -21,12 +19,4 @@ type Transaction struct {
 	Timestamp       time.Time
 }
 
-func NewTransaction(userID string, transactionType TransactionType, amount uint) *Transaction {
-	return &Transaction{
-		ID:              utils.GenerateUUID(),
-		UserID:          userID,
-		TransactionType: transactionType,
-		Amount:          amount,
-		Timestamp:       time.Now(),
-	}
-}
+

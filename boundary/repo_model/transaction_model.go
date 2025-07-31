@@ -14,6 +14,10 @@ type TransactionModel struct {
 	Timestamp       time.Time `gorm:"type:timestamp;not null"`
 }
 
+func (TransactionModel) TableName() string {
+	return "transactions"
+}
+
 func (m *TransactionModel) ToEntity() *entity.Transaction {
 	return &entity.Transaction{
 		ID:              m.ID,

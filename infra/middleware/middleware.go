@@ -1,4 +1,4 @@
-package infra
+package middleware
 
 import (
 	"context"
@@ -14,20 +14,21 @@ func LoggingMiddleware(handler http.HandlerFunc, logger logging.Logger) http.Han
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		logger.Info(r.Context(), fmt.Sprintf("Request started: %s %s",
-			r.Method,
-			r.URL.Path),
-		)
-
 		ctx := r.Context()
 		if ctx.Value(utils.CtxKeyRequestID) == nil {
 			ctx = context.WithValue(ctx, utils.CtxKeyRequestID, utils.GenerateUUID())
 		}
 
+
+		logger.Info(ctx, fmt.Sprintf("Request started: %s %s",
+			r.Method,
+			r.URL.Path),
+		)
+
 		handler.ServeHTTP(w, r.WithContext(ctx))
 
 		duration := time.Since(start)
-		logger.Info(r.Context(), fmt.Sprintf("Request completed: %s %s - Duration: %s",
+		logger.Info(ctx, fmt.Sprintf("Request completed: %s %s - Duration: %s",
 			r.Method,
 			r.URL.Path,
 			duration.String()),

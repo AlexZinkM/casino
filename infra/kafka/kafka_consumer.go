@@ -44,29 +44,34 @@ func NewKafkaConsumer(brokers []string, topic string, useCase usecase.Transactio
 
 func (kc *KafkaConsumer) Start(ctx context.Context) {
 	for {
-		message, err := kc.reader.ReadMessage(ctx)
-		if err != nil {
-			kc.logger.Error(ctx, err)
-			continue
-		}
+		select {
+		case <-ctx.Done():
+			kc.logger.Info(ctx, "Kafka consumer stopping due to context cancellation")
+			return
+		default:
+			message, err := kc.reader.ReadMessage(ctx)
+			if err != nil {
+				kc.logger.Error(ctx, err)
+				continue
+			}
 
-		var transactionMsg TransactionMessage
-		if err := json.Unmarshal(message.Value, &transactionMsg); err != nil {
-			kc.logger.Error(ctx, err)
-			continue
-		}
+			var transactionMsg TransactionMessage
+			if err := json.Unmarshal(message.Value, &transactionMsg); err != nil {
+				kc.logger.Error(ctx, err)
+				continue
+			}
 
-		createDto := &dto.CreateTransactionDTO{
-			UserID:          transactionMsg.UserID,
-			TransactionType: transactionMsg.TransactionType,
-			Amount:          transactionMsg.Amount,
-		}
+			createDto := &dto.CreateTransactionDTO{
+				UserID:          transactionMsg.UserID,
+				TransactionType: transactionMsg.TransactionType,
+				Amount:          transactionMsg.Amount,
+			}
 
-		if err := kc.useCase.ProcessTransaction(createDto); err != nil {
-			kc.logger.Error(ctx, err)
-			continue
+			if err := kc.useCase.ProcessTransaction(createDto); err != nil {
+				kc.logger.Error(ctx, err)
+				continue
+			}
 		}
-
 	}
 }
 

@@ -21,11 +21,3 @@ func (r *TransactionResponse) FromDto(dto *dto.TransactionDTO) {
 	r.Timestamp = dto.Timestamp.Format(time.RFC3339)
 }
 
-func (r *TransactionResponse) ToDto() *dto.TransactionDTO {
-	return &dto.TransactionDTO{
-		ID:              r.ID,
-		UserID:          r.UserID,
-		TransactionType: r.TransactionType,
-		Amount:          r.Amount,
-	}
-}

@@ -1,4 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL,
@@ -6,6 +5,75 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount INTEGER NOT NULL CHECK (amount > 0),
     timestamp TIMESTAMP NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(transaction_type);
-CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp);
+
+INSERT INTO transactions (id, user_id, transaction_type, amount, timestamp)
+VALUES (
+        '550e8400-e29b-41d4-a716-446655440001',
+        '550e8400-e29b-41d4-a716-446655440010',
+        'bet',
+        1000,
+        '2024-01-15 14:30:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440002',
+        '550e8400-e29b-41d4-a716-446655440010',
+        'win',
+        2500,
+        '2024-01-15 14:35:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440003',
+        '550e8400-e29b-41d4-a716-446655440011',
+        'bet',
+        500,
+        '2024-01-15 15:00:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440004',
+        '550e8400-e29b-41d4-a716-446655440011',
+        'win',
+        1200,
+        '2024-01-15 15:05:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440005',
+        '550e8400-e29b-41d4-a716-446655440012',
+        'bet',
+        2000,
+        '2024-01-15 16:00:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440006',
+        '550e8400-e29b-41d4-a716-446655440012',
+        'win',
+        5000,
+        '2024-01-15 16:10:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440007',
+        '550e8400-e29b-41d4-a716-446655440013',
+        'bet',
+        750,
+        '2024-01-15 17:00:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440008',
+        '550e8400-e29b-41d4-a716-446655440013',
+        'win',
+        1800,
+        '2024-01-15 17:15:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440009',
+        '550e8400-e29b-41d4-a716-446655440014',
+        'bet',
+        1500,
+        '2024-01-15 18:00:00'
+    ),
+    (
+        '550e8400-e29b-41d4-a716-446655440010',
+        '550e8400-e29b-41d4-a716-446655440014',
+        'win',
+        3000,
+        '2024-01-15 18:30:00'
+    );

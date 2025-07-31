@@ -15,10 +15,3 @@ func (r *TransactionsResponse) FromDtos(dtos []*dto.TransactionDTO) {
 	}
 }
 
-func (r *TransactionsResponse) ToDtos() []*dto.TransactionDTO {
-	dtos := make([]*dto.TransactionDTO, len(r.Transactions))
-	for i, response := range r.Transactions {
-		dtos[i] = response.ToDto()
-	}
-	return dtos
-}

@@ -1,0 +1,34 @@
+linters-settings:
+  gocyclo:
+    min-complexity: 20
+  gocognit:
+    min-complexity: 30
+  funlen:
+    lines: 45
+  nestif:
+    min-complexity: 3
+  dupl:
+    threshold: 50
+  maintidx:
+    under: 35
+
+linters:
+  disable-all: true
+  enable:
+    - gocyclo
+    - gocognit
+    - funlen
+    - nestif
+    - dupl
+    - maintidx
+    - errcheck
+    - staticcheck
+
+
+issues:
+  exclude-files:
+    - ".*_test\\.go$"
+    - "main.go"
+    - "nethttp_service.go"
+  exclude-dirs:
+    - "testdata" 

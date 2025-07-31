@@ -31,9 +31,9 @@ func NewTransactionHandler(transactionUseCase usecase.TransactionUseCase, logger
 // @Produce json
 // @Param user_id query string true "User ID"
 // @Param transaction_type query string false "Transaction type filter (bet or win)"
-// @Success 200 {object} adapterjson.TransactionsResponse
-// @Failure 400 {object} adapterjson.ErrorResponse
-// @Failure 500 {object} adapterjson.ErrorResponse
+// @Success 200 {object} json.TransactionsResponse
+// @Failure 400 {object} map[string]string "Bad Request"
+// @Failure 500 {object} map[string]string "Internal Server Error"
 // @Router /transactions/user [get]
 func (h *TransactionHandler) GetUserTransactions(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("user_id")
@@ -62,7 +62,11 @@ func (h *TransactionHandler) GetUserTransactions(w http.ResponseWriter, r *http.
 	response.FromDtos(dtos)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Error(r.Context(), err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetAllTransactions godoc
@@ -72,8 +76,8 @@ func (h *TransactionHandler) GetUserTransactions(w http.ResponseWriter, r *http.
 // @Accept json
 // @Produce json
 // @Param transaction_type query string false "Transaction type filter (bet or win)"
-// @Success 200 {object} adapterjson.TransactionsResponse
-// @Failure 500 {object} adapterjson.ErrorResponse
+// @Success 200 {object} json.TransactionsResponse
+// @Failure 500 {object} map[string]string "Internal Server Error"
 // @Router /transactions [get]
 func (h *TransactionHandler) GetAllTransactions(w http.ResponseWriter, r *http.Request) {
 	transactionTypeStr := r.URL.Query().Get("transaction_type")
@@ -95,6 +99,9 @@ func (h *TransactionHandler) GetAllTransactions(w http.ResponseWriter, r *http.R
 	response.FromDtos(dtos)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Error(r.Context(), err)
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
