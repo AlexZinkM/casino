@@ -546,11 +546,15 @@ func (m *MockKafkaReader) ReadMessage(ctx context.Context) (kafka.Message, error
 		return kafka.Message{}, m.errOnRead
 	}
 	if m.readIndex >= len(m.messages) {
-		return kafka.Message{}, context.Canceled 
+		return kafka.Message{}, context.Canceled
 	}
 	msg := kafka.Message{Value: m.messages[m.readIndex]}
 	m.readIndex++
 	return msg, nil
+}
+
+func (m *MockKafkaReader) CommitMessages(ctx context.Context, msgs ...kafka.Message) error {
+	return nil
 }
 
 func (m *MockKafkaReader) Close() error {

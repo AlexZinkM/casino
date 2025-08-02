@@ -724,3 +724,320 @@ func TestPostgresTransactionRepository_BoundaryValues(t *testing.T) {
 		t.Errorf("There were unfulfilled expectations: %s", err)
 	}
 }
+
+func TestPostgresTransactionRepository_GetByID_Success(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	transactionID := utils.GenerateUUID()
+	expectedModel := &repo_model.TransactionModel{
+		ID:              transactionID,
+		UserID:          utils.GenerateUUID(),
+		TransactionType: "bet",
+		Amount:          100,
+		Timestamp:       time.Now(),
+	}
+
+	expectedRows := sqlmock.NewRows([]string{"id", "user_id", "transaction_type", "amount", "timestamp"}).
+		AddRow(expectedModel.ID, expectedModel.UserID, expectedModel.TransactionType, expectedModel.Amount, expectedModel.Timestamp)
+
+	mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+		WithArgs(transactionID, 1).
+		WillReturnRows(expectedRows)
+
+	model, err := repo.GetByID(transactionID)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if model == nil {
+		t.Error("Expected model to be returned")
+	}
+
+	if model.ID != expectedModel.ID {
+		t.Errorf("Expected ID %s, got %s", expectedModel.ID, model.ID)
+	}
+
+	if model.UserID != expectedModel.UserID {
+		t.Errorf("Expected UserID %s, got %s", expectedModel.UserID, model.UserID)
+	}
+
+	if model.TransactionType != expectedModel.TransactionType {
+		t.Errorf("Expected TransactionType %s, got %s", expectedModel.TransactionType, model.TransactionType)
+	}
+
+	if model.Amount != expectedModel.Amount {
+		t.Errorf("Expected Amount %d, got %d", expectedModel.Amount, model.Amount)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestPostgresTransactionRepository_GetByID_NotFound(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	transactionID := utils.GenerateUUID()
+
+	mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+		WithArgs(transactionID, 1).
+		WillReturnError(errors.New("record not found"))
+
+	model, err := repo.GetByID(transactionID)
+	if err != nil {
+		t.Errorf("Expected no error for not found, got %v", err)
+	}
+
+	if model != nil {
+		t.Error("Expected nil model when transaction not found")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestPostgresTransactionRepository_GetByID_DatabaseError(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	transactionID := utils.GenerateUUID()
+
+	mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+		WithArgs(transactionID, 1).
+		WillReturnError(errors.New("database connection error"))
+
+	model, err := repo.GetByID(transactionID)
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+
+	if err.Error() != "failed to get transaction by id: database connection error" {
+		t.Errorf("Expected specific error message, got %v", err)
+	}
+
+	if model != nil {
+		t.Error("Expected nil model on error")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestPostgresTransactionRepository_GetByID_NilDB(t *testing.T) {
+	repo := NewPostgresTransactionRepository(nil)
+
+	transactionID := utils.GenerateUUID()
+
+	model, err := repo.GetByID(transactionID)
+	if err == nil {
+		t.Error("Expected error for nil DB")
+	}
+
+	if err.Error() != "database connection is nil" {
+		t.Errorf("Expected specific error message, got %v", err)
+	}
+
+	if model != nil {
+		t.Error("Expected nil model on error")
+	}
+}
+
+func TestPostgresTransactionRepository_GetByID_EmptyID(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	emptyID := ""
+
+	mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+		WithArgs(emptyID, 1).
+		WillReturnError(errors.New("record not found"))
+
+	model, err := repo.GetByID(emptyID)
+	if err != nil {
+		t.Errorf("Expected no error for empty ID, got %v", err)
+	}
+
+	if model != nil {
+		t.Error("Expected nil model for empty ID")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestPostgresTransactionRepository_GetByID_InvalidUUID(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	invalidUUID := "invalid-uuid"
+
+	mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+		WithArgs(invalidUUID, 1).
+		WillReturnError(errors.New("invalid input syntax for type uuid"))
+
+	model, err := repo.GetByID(invalidUUID)
+	if err == nil {
+		t.Error("Expected error for invalid UUID")
+	}
+
+	if err.Error() != "failed to get transaction by id: invalid input syntax for type uuid" {
+		t.Errorf("Expected specific error message, got %v", err)
+	}
+
+	if model != nil {
+		t.Error("Expected nil model on error")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestPostgresTransactionRepository_InterfaceCompliance_GetByID(t *testing.T) {
+	db, _, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	var _ repository.TransactionRepository = repo
+
+	// Test that GetByID method exists and has correct signature
+	_ = repo.GetByID
+}
+
+func TestPostgresTransactionRepository_ErrorHandling_GetByID(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	transactionID := utils.GenerateUUID()
+
+	// Test different database error scenarios
+	testCases := []struct {
+		name            string
+		errorMessage    string
+		expectedError   string
+		shouldReturnNil bool
+	}{
+		{
+			name:            "connection timeout",
+			errorMessage:    "connection timeout",
+			expectedError:   "failed to get transaction by id: connection timeout",
+			shouldReturnNil: false,
+		},
+		{
+			name:            "table not found",
+			errorMessage:    "table not found",
+			expectedError:   "failed to get transaction by id: table not found",
+			shouldReturnNil: false,
+		},
+		{
+			name:            "permission denied",
+			errorMessage:    "permission denied",
+			expectedError:   "failed to get transaction by id: permission denied",
+			shouldReturnNil: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+				WithArgs(transactionID, 1).
+				WillReturnError(errors.New(tc.errorMessage))
+
+			model, err := repo.GetByID(transactionID)
+
+			if tc.shouldReturnNil {
+				if err != nil {
+					t.Errorf("Expected no error, got %v", err)
+				}
+				if model != nil {
+					t.Error("Expected nil model")
+				}
+			} else {
+				if err == nil {
+					t.Error("Expected error, got nil")
+				}
+				if err.Error() != tc.expectedError {
+					t.Errorf("Expected error message %s, got %s", tc.expectedError, err.Error())
+				}
+				if model != nil {
+					t.Error("Expected nil model on error")
+				}
+			}
+		})
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestPostgresTransactionRepository_DataValidation_GetByID(t *testing.T) {
+	db, mock, cleanup := setupMockTestDB(t)
+	defer cleanup()
+
+	repo := NewPostgresTransactionRepository(db)
+
+	transactionID := utils.GenerateUUID()
+	expectedModel := &repo_model.TransactionModel{
+		ID:              transactionID,
+		UserID:          utils.GenerateUUID(),
+		TransactionType: "win",
+		Amount:          500,
+		Timestamp:       time.Now(),
+	}
+
+	expectedRows := sqlmock.NewRows([]string{"id", "user_id", "transaction_type", "amount", "timestamp"}).
+		AddRow(expectedModel.ID, expectedModel.UserID, expectedModel.TransactionType, expectedModel.Amount, expectedModel.Timestamp)
+
+	mock.ExpectQuery("SELECT (.+) FROM (.+) WHERE id = (.+) ORDER BY (.+) LIMIT (.+)").
+		WithArgs(transactionID, 1).
+		WillReturnRows(expectedRows)
+
+	model, err := repo.GetByID(transactionID)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	// Validate all fields are correctly populated
+	if model.ID != expectedModel.ID {
+		t.Errorf("ID mismatch: expected %s, got %s", expectedModel.ID, model.ID)
+	}
+
+	if model.UserID != expectedModel.UserID {
+		t.Errorf("UserID mismatch: expected %s, got %s", expectedModel.UserID, model.UserID)
+	}
+
+	if model.TransactionType != expectedModel.TransactionType {
+		t.Errorf("TransactionType mismatch: expected %s, got %s", expectedModel.TransactionType, model.TransactionType)
+	}
+
+	if model.Amount != expectedModel.Amount {
+		t.Errorf("Amount mismatch: expected %d, got %d", expectedModel.Amount, model.Amount)
+	}
+
+	if model.Timestamp.IsZero() {
+		t.Error("Timestamp should not be zero")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There were unfulfilled expectations: %s", err)
+	}
+}

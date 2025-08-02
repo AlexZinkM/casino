@@ -33,6 +33,22 @@ func (r *PostgresTransactionRepository) Save(transaction *repo_model.Transaction
 	return nil
 }
 
+func (r *PostgresTransactionRepository) GetByID(id string) (*repo_model.TransactionModel, error) {
+	if r.db == nil {
+		return nil, fmt.Errorf("database connection is nil")
+	}
+
+	var model repo_model.TransactionModel
+	if err := r.db.Where("id = ?", id).First(&model).Error; err != nil {
+		if err.Error() == "record not found" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get transaction by id: %w", err)
+	}
+
+	return &model, nil
+}
+
 func (r *PostgresTransactionRepository) GetByUserID(userID string, transactionType *string) ([]*repo_model.TransactionModel, error) {
 	if r.db == nil {
 		return nil, fmt.Errorf("database connection is nil")

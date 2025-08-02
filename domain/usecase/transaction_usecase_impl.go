@@ -4,6 +4,7 @@ import (
 	"casino/boundary/dto"
 	"casino/boundary/repo_model"
 	"casino/boundary/repository"
+	"fmt"
 )
 
 type TransactionUseCaseImpl struct {
@@ -17,6 +18,15 @@ func NewTransactionUseCaseImpl(transactionRepo repository.TransactionRepository)
 }
 
 func (uc *TransactionUseCaseImpl) ProcessTransaction(dto *dto.CreateTransactionDTO) error {
+	existingTransaction, err := uc.transactionRepo.GetByID(dto.ID)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing transaction: %w", err)
+	}
+
+	if existingTransaction != nil {
+		return fmt.Errorf("trans with id %s alredy exists", dto.ID)
+	}
+
 	entity := dto.ToEntity()
 	model := &repo_model.TransactionModel{}
 	model.FromEntity(entity)

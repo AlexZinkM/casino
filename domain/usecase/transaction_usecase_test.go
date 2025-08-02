@@ -6,181 +6,363 @@ import (
 
 	"casino/boundary/dto"
 	"casino/boundary/repo_model"
-	"casino/utils"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type MockTransactionRepository struct {
-	models    []*repo_model.TransactionModel
-	saveError error
-	getError  error
+	mock.Mock
 }
 
 func (m *MockTransactionRepository) Save(transaction *repo_model.TransactionModel) error {
-	if m.saveError != nil {
-		return m.saveError
+	args := m.Called(transaction)
+	return args.Error(0)
+}
+
+func (m *MockTransactionRepository) GetByID(id string) (*repo_model.TransactionModel, error) {
+	args := m.Called(id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	m.models = append(m.models, transaction)
-	return nil
+	return args.Get(0).(*repo_model.TransactionModel), args.Error(1)
 }
 
 func (m *MockTransactionRepository) GetByUserID(userID string, transactionType *string) ([]*repo_model.TransactionModel, error) {
-	if m.getError != nil {
-		return nil, m.getError
+	args := m.Called(userID, transactionType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-
-	var filtered []*repo_model.TransactionModel
-	for _, t := range m.models {
-		if t.UserID == userID {
-			if transactionType == nil || t.TransactionType == *transactionType {
-				filtered = append(filtered, t)
-			}
-		}
-	}
-	return filtered, nil
+	return args.Get(0).([]*repo_model.TransactionModel), args.Error(1)
 }
 
 func (m *MockTransactionRepository) GetAll(transactionType *string) ([]*repo_model.TransactionModel, error) {
-	if m.getError != nil {
-		return nil, m.getError
+	args := m.Called(transactionType)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-
-	var filtered []*repo_model.TransactionModel
-	for _, t := range m.models {
-		if transactionType == nil || t.TransactionType == *transactionType {
-			filtered = append(filtered, t)
-		}
-	}
-	return filtered, nil
+	return args.Get(0).([]*repo_model.TransactionModel), args.Error(1)
 }
 
-func TestProcessTransaction(t *testing.T) {
+func TestProcessTransaction_Idempotency(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	transactionID := "550e8400-e29b-41d4-a716-446655440001"
+	createDto := &dto.CreateTransactionDTO{
+		ID:              transactionID,
+		UserID:          "550e8400-e29b-41d4-a716-446655440010",
+		TransactionType: "bet",
+		Amount:          1000,
+	}
+
+	expectedEntity := createDto.ToEntity()
+	expectedModel := &repo_model.TransactionModel{}
+	expectedModel.FromEntity(expectedEntity)
+
+	mockRepo.On("GetByID", transactionID).Return(nil, nil).Once()
+	mockRepo.On("Save", mock.AnythingOfType("*repo_model.TransactionModel")).Return(nil).Once()
+
+	err := useCase.ProcessTransaction(createDto)
+	assert.NoError(t, err)
+
+	mockRepo.On("GetByID", transactionID).Return(expectedModel, nil).Once()
+
+	err = useCase.ProcessTransaction(createDto)
+	assert.Error(t, err)
+
+	mockRepo.AssertNumberOfCalls(t, "Save", 1)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestProcessTransaction_ErrorHandling(t *testing.T) {
 	mockRepo := &MockTransactionRepository{}
 	useCase := NewTransactionUseCaseImpl(mockRepo)
 
 	createDto := &dto.CreateTransactionDTO{
-		UserID:          utils.GenerateUUID(),
+		ID:              "550e8400-e29b-41d4-a716-446655440001",
+		UserID:          "550e8400-e29b-41d4-a716-446655440010",
 		TransactionType: "bet",
-		Amount:          100,
+		Amount:          1000,
 	}
+
+	mockRepo.On("GetByID", createDto.ID).Return(nil, assert.AnError).Once()
 
 	err := useCase.ProcessTransaction(createDto)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check for existing transaction")
 
-	if len(mockRepo.models) != 1 {
-		t.Errorf("Expected 1 transaction, got %d", len(mockRepo.models))
-	}
-
-	model := mockRepo.models[0]
-	if model.UserID != createDto.UserID {
-		t.Errorf("Expected UserID %s, got %s", createDto.UserID, model.UserID)
-	}
-
-	if model.TransactionType != createDto.TransactionType {
-		t.Errorf("Expected TransactionType %s, got %s", createDto.TransactionType, model.TransactionType)
-	}
-
-	if model.Amount != createDto.Amount {
-		t.Errorf("Expected Amount %d, got %d", createDto.Amount, model.Amount)
-	}
+	mockRepo.AssertExpectations(t)
 }
 
-func TestGetUserTransactions(t *testing.T) {
+func TestProcessTransaction_SaveError(t *testing.T) {
 	mockRepo := &MockTransactionRepository{}
 	useCase := NewTransactionUseCaseImpl(mockRepo)
 
-	userID := utils.GenerateUUID()
-	model1 := &repo_model.TransactionModel{
-		ID:              utils.GenerateUUID(),
-		UserID:          userID,
+	createDto := &dto.CreateTransactionDTO{
+		ID:              "550e8400-e29b-41d4-a716-446655440001",
+		UserID:          "550e8400-e29b-41d4-a716-446655440010",
 		TransactionType: "bet",
-		Amount:          100,
-		Timestamp:       time.Now(),
+		Amount:          1000,
 	}
-	model2 := &repo_model.TransactionModel{
-		ID:              utils.GenerateUUID(),
-		UserID:          userID,
-		TransactionType: "win",
-		Amount:          200,
-		Timestamp:       time.Now(),
+
+	mockRepo.On("GetByID", createDto.ID).Return(nil, nil).Once()
+	mockRepo.On("Save", mock.AnythingOfType("*repo_model.TransactionModel")).Return(assert.AnError).Once()
+
+	err := useCase.ProcessTransaction(createDto)
+	assert.Error(t, err)
+	assert.Equal(t, assert.AnError, err)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetUserTransactions_Success(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	userID := "550e8400-e29b-41d4-a716-446655440010"
+	models := []*repo_model.TransactionModel{
+		{
+			ID:              "550e8400-e29b-41d4-a716-446655440001",
+			UserID:          userID,
+			TransactionType: "bet",
+			Amount:          1000,
+			Timestamp:       time.Now(),
+		},
+		{
+			ID:              "550e8400-e29b-41d4-a716-446655440002",
+			UserID:          userID,
+			TransactionType: "win",
+			Amount:          2000,
+			Timestamp:       time.Now(),
+		},
 	}
-	mockRepo.models = []*repo_model.TransactionModel{model1, model2}
+
+	mockRepo.On("GetByUserID", userID, (*string)(nil)).Return(models, nil).Once()
 
 	dtos, err := useCase.GetUserTransactions(userID, nil)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 2)
+	assert.Equal(t, models[0].ID, dtos[0].ID)
+	assert.Equal(t, models[1].ID, dtos[1].ID)
 
-	if len(dtos) != 2 {
-		t.Errorf("Expected 2 transactions, got %d", len(dtos))
-	}
-
-	filter := &dto.TransactionFilterDTO{
-		TransactionType: stringPtr("bet"),
-	}
-
-	dtos, err = useCase.GetUserTransactions(userID, filter)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	if len(dtos) != 1 {
-		t.Errorf("Expected 1 transaction, got %d", len(dtos))
-	}
-
-	if dtos[0].TransactionType != "bet" {
-		t.Errorf("Expected transaction type 'bet', got %s", dtos[0].TransactionType)
-	}
+	mockRepo.AssertExpectations(t)
 }
 
-func TestGetAllTransactions(t *testing.T) {
+func TestGetUserTransactions_WithFilter(t *testing.T) {
 	mockRepo := &MockTransactionRepository{}
 	useCase := NewTransactionUseCaseImpl(mockRepo)
 
-	model1 := &repo_model.TransactionModel{
-		ID:              utils.GenerateUUID(),
-		UserID:          utils.GenerateUUID(),
-		TransactionType: "bet",
-		Amount:          100,
-		Timestamp:       time.Now(),
-	}
-	model2 := &repo_model.TransactionModel{
-		ID:              utils.GenerateUUID(),
-		UserID:          utils.GenerateUUID(),
-		TransactionType: "win",
-		Amount:          200,
-		Timestamp:       time.Now(),
-	}
-	mockRepo.models = []*repo_model.TransactionModel{model1, model2}
-
-	dtos, err := useCase.GetAllTransactions(nil)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
-	}
-
-	if len(dtos) != 2 {
-		t.Errorf("Expected 2 transactions, got %d", len(dtos))
-	}
-
+	userID := "550e8400-e29b-41d4-a716-446655440010"
+	transactionType := "bet"
 	filter := &dto.TransactionFilterDTO{
-		TransactionType: stringPtr("win"),
+		TransactionType: &transactionType,
 	}
 
-	dtos, err = useCase.GetAllTransactions(filter)
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+	models := []*repo_model.TransactionModel{
+		{
+			ID:              "550e8400-e29b-41d4-a716-446655440001",
+			UserID:          userID,
+			TransactionType: "bet",
+			Amount:          1000,
+			Timestamp:       time.Now(),
+		},
 	}
 
-	if len(dtos) != 1 {
-		t.Errorf("Expected 1 transaction, got %d", len(dtos))
-	}
+	mockRepo.On("GetByUserID", userID, &transactionType).Return(models, nil).Once()
 
-	if dtos[0].TransactionType != "win" {
-		t.Errorf("Expected transaction type 'win', got %s", dtos[0].TransactionType)
-	}
+	dtos, err := useCase.GetUserTransactions(userID, filter)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 1)
+	assert.Equal(t, models[0].ID, dtos[0].ID)
+	assert.Equal(t, "bet", dtos[0].TransactionType)
+
+	mockRepo.AssertExpectations(t)
 }
 
-func stringPtr(s string) *string {
-	return &s
+func TestGetUserTransactions_EmptyResult(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	userID := "550e8400-e29b-41d4-a716-446655440010"
+
+	mockRepo.On("GetByUserID", userID, (*string)(nil)).Return([]*repo_model.TransactionModel{}, nil).Once()
+
+	dtos, err := useCase.GetUserTransactions(userID, nil)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 0)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetUserTransactions_RepositoryError(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	userID := "550e8400-e29b-41d4-a716-446655440010"
+
+	mockRepo.On("GetByUserID", userID, (*string)(nil)).Return(nil, assert.AnError).Once()
+
+	dtos, err := useCase.GetUserTransactions(userID, nil)
+	assert.Error(t, err)
+	assert.Nil(t, dtos)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllTransactions_Success(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	models := []*repo_model.TransactionModel{
+		{
+			ID:              "550e8400-e29b-41d4-a716-446655440001",
+			UserID:          "550e8400-e29b-41d4-a716-446655440010",
+			TransactionType: "bet",
+			Amount:          1000,
+			Timestamp:       time.Now(),
+		},
+		{
+			ID:              "550e8400-e29b-41d4-a716-446655440002",
+			UserID:          "550e8400-e29b-41d4-a716-446655440011",
+			TransactionType: "win",
+			Amount:          2000,
+			Timestamp:       time.Now(),
+		},
+	}
+
+	mockRepo.On("GetAll", (*string)(nil)).Return(models, nil).Once()
+
+	dtos, err := useCase.GetAllTransactions(nil)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 2)
+	assert.Equal(t, models[0].ID, dtos[0].ID)
+	assert.Equal(t, models[1].ID, dtos[1].ID)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllTransactions_WithFilter(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	transactionType := "win"
+	filter := &dto.TransactionFilterDTO{
+		TransactionType: &transactionType,
+	}
+
+	models := []*repo_model.TransactionModel{
+		{
+			ID:              "550e8400-e29b-41d4-a716-446655440002",
+			UserID:          "550e8400-e29b-41d4-a716-446655440011",
+			TransactionType: "win",
+			Amount:          2000,
+			Timestamp:       time.Now(),
+		},
+	}
+
+	mockRepo.On("GetAll", &transactionType).Return(models, nil).Once()
+
+	dtos, err := useCase.GetAllTransactions(filter)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 1)
+	assert.Equal(t, models[0].ID, dtos[0].ID)
+	assert.Equal(t, "win", dtos[0].TransactionType)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllTransactions_EmptyResult(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	mockRepo.On("GetAll", (*string)(nil)).Return([]*repo_model.TransactionModel{}, nil).Once()
+
+	dtos, err := useCase.GetAllTransactions(nil)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 0)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllTransactions_RepositoryError(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	mockRepo.On("GetAll", (*string)(nil)).Return(nil, assert.AnError).Once()
+
+	dtos, err := useCase.GetAllTransactions(nil)
+	assert.Error(t, err)
+	assert.Nil(t, dtos)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestNewTransactionUseCaseImpl(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	assert.NotNil(t, useCase)
+	assert.Equal(t, mockRepo, useCase.transactionRepo)
+}
+
+func TestGetUserTransactions_DataConversion(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	userID := "550e8400-e29b-41d4-a716-446655440010"
+	model := &repo_model.TransactionModel{
+		ID:              "550e8400-e29b-41d4-a716-446655440001",
+		UserID:          userID,
+		TransactionType: "bet",
+		Amount:          1000,
+		Timestamp:       time.Now(),
+	}
+
+	models := []*repo_model.TransactionModel{model}
+
+	mockRepo.On("GetByUserID", userID, (*string)(nil)).Return(models, nil).Once()
+
+	dtos, err := useCase.GetUserTransactions(userID, nil)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 1)
+
+	dto := dtos[0]
+	assert.Equal(t, model.ID, dto.ID)
+	assert.Equal(t, model.UserID, dto.UserID)
+	assert.Equal(t, model.TransactionType, dto.TransactionType)
+	assert.Equal(t, model.Amount, dto.Amount)
+	assert.Equal(t, model.Timestamp, dto.Timestamp)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestGetAllTransactions_DataConversion(t *testing.T) {
+	mockRepo := &MockTransactionRepository{}
+	useCase := NewTransactionUseCaseImpl(mockRepo)
+
+	model := &repo_model.TransactionModel{
+		ID:              "550e8400-e29b-41d4-a716-446655440001",
+		UserID:          "550e8400-e29b-41d4-a716-446655440010",
+		TransactionType: "win",
+		Amount:          2000,
+		Timestamp:       time.Now(),
+	}
+
+	models := []*repo_model.TransactionModel{model}
+
+	mockRepo.On("GetAll", (*string)(nil)).Return(models, nil).Once()
+
+	dtos, err := useCase.GetAllTransactions(nil)
+	assert.NoError(t, err)
+	assert.Len(t, dtos, 1)
+
+	dto := dtos[0]
+	assert.Equal(t, model.ID, dto.ID)
+	assert.Equal(t, model.UserID, dto.UserID)
+	assert.Equal(t, model.TransactionType, dto.TransactionType)
+	assert.Equal(t, model.Amount, dto.Amount)
+	assert.Equal(t, model.Timestamp, dto.Timestamp)
+
+	mockRepo.AssertExpectations(t)
 }
