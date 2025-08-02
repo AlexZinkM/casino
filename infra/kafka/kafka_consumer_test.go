@@ -609,3 +609,230 @@ func TestKafkaConsumer_Start_MockReader(t *testing.T) {
 		t.Error("Expected reader to be closed after Close")
 	}
 }
+
+func TestKafkaConsumer_Start_ReadMessageError(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{}
+	mockLogger := &MockLogger{}
+
+	reader := &MockKafkaReader{
+		errOnRead: fmt.Errorf("read error"),
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockLogger.errorCount == 0 {
+		t.Error("Expected error to be logged for read message error")
+	}
+}
+
+func TestKafkaConsumer_Start_ProcessTransactionError(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{
+		processError: fmt.Errorf("processing error"),
+	}
+	mockLogger := &MockLogger{}
+
+	validMsg := TransactionMessage{
+		UserID:          "user1",
+		TransactionType: "bet",
+		Amount:          100,
+	}
+	validBytes, _ := json.Marshal(validMsg)
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{validBytes},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockLogger.errorCount == 0 {
+		t.Error("Expected error to be logged for processing error")
+	}
+}
+
+func TestKafkaConsumer_Start_ExistingTransaction(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{
+		processError: fmt.Errorf("trans with id user1 alredy exists"),
+	}
+	mockLogger := &MockLogger{}
+
+	validMsg := TransactionMessage{
+		ID:              "user1",
+		UserID:          "user1",
+		TransactionType: "bet",
+		Amount:          100,
+	}
+	validBytes, _ := json.Marshal(validMsg)
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{validBytes},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockLogger.errorCount == 0 {
+		t.Error("Expected error to be logged for existing transaction")
+	}
+}
+
+func TestKafkaConsumer_Start_SuccessfulProcessing(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{}
+	mockLogger := &MockLogger{}
+
+	validMsg := TransactionMessage{
+		ID:              "user1",
+		UserID:          "user1",
+		TransactionType: "bet",
+		Amount:          100,
+	}
+	validBytes, _ := json.Marshal(validMsg)
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{validBytes},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockUseCase.processCount != 1 {
+		t.Errorf("Expected 1 message processed, got %d", mockUseCase.processCount)
+	}
+
+	if mockLogger.infoCount == 0 {
+		t.Error("Expected info message to be logged for successful processing")
+	}
+}
+
+func TestKafkaConsumer_Start_ContextCancellation(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{}
+	mockLogger := &MockLogger{}
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	cancel()
+
+	time.Sleep(10 * time.Millisecond)
+	consumer.Close()
+
+	if mockLogger.infoCount == 0 {
+		t.Error("Expected info message to be logged for context cancellation")
+	}
+}
+
+func TestKafkaConsumer_Start_EmptyMessage(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{}
+	mockLogger := &MockLogger{}
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{[]byte{}},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockLogger.errorCount == 0 {
+		t.Error("Expected error to be logged for empty message")
+	}
+}
+
+func TestKafkaConsumer_Start_MalformedJSON(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{}
+	mockLogger := &MockLogger{}
+
+	malformedJSON := []byte(`{"user_id": "user1", "transaction_type": "bet", "amount": "not_a_number"}`)
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{malformedJSON},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockLogger.errorCount == 0 {
+		t.Error("Expected error to be logged for malformed JSON")
+	}
+}
+
+func TestKafkaConsumer_Start_MissingFields(t *testing.T) {
+	mockUseCase := &MockTransactionUseCase{}
+	mockLogger := &MockLogger{}
+
+	partialJSON := []byte(`{"user_id": "user1"}`)
+
+	reader := &MockKafkaReader{
+		messages: [][]byte{partialJSON},
+	}
+
+	consumer := newTestKafkaConsumerWithMockReader(reader, mockUseCase, mockLogger)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go consumer.Start(ctx)
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+
+	consumer.Close()
+
+	if mockUseCase.processCount != 1 {
+		t.Errorf("Expected 1 message processed, got %d", mockUseCase.processCount)
+	}
+}
