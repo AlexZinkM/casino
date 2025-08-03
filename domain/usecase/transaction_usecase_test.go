@@ -1,11 +1,13 @@
 package usecase
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"casino/boundary/dto"
 	"casino/boundary/repo_model"
+	"casino/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -70,9 +72,23 @@ func TestProcessTransaction_Idempotency(t *testing.T) {
 
 	err = useCase.ProcessTransaction(createDto)
 	assert.Error(t, err)
+	assert.True(t, utils.IsTransactionAlreadyExists(err))
 
 	mockRepo.AssertNumberOfCalls(t, "Save", 1)
 	mockRepo.AssertExpectations(t)
+}
+
+func TestIsTransactionAlreadyExists(t *testing.T) {
+	// Test with custom error
+	customErr := &utils.TransactionAlreadyExistsError{TransactionID: "test-id"}
+	assert.True(t, utils.IsTransactionAlreadyExists(customErr))
+
+	// Test with regular error
+	regularErr := fmt.Errorf("some other error")
+	assert.False(t, utils.IsTransactionAlreadyExists(regularErr))
+
+	// Test with nil
+	assert.False(t, utils.IsTransactionAlreadyExists(nil))
 }
 
 func TestProcessTransaction_ErrorHandling(t *testing.T) {

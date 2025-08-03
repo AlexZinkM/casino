@@ -43,7 +43,7 @@ func (r *PostgresTransactionRepository) GetByID(id string) (*repo_model.Transact
 		if err.Error() == "record not found" {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to get transaction by id: %w", err)
+		return nil, err
 	}
 
 	return &model, nil

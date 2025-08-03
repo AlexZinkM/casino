@@ -1,6 +1,6 @@
 # Casino Transaction Management System
 
-I completed the test assignment as requested. Kafka is handled asynchronously. I also added Swagger, a simple middleware, and basic asynchronous logging to make the project look more polished and structured.
+I completed the test assignment as requested. Kafka is handled asynchronously, with a simple retry mechanism for db connection issues without DQL. I also added Swagger, a simple middleware, and basic asynchronous logging to make the project look more polished and structured.
 
 The menu was required to be covered with tests by 85%. As I understand it, this refers not to total code coverage, but specifically to covering parts that contain actual business logic.
 
@@ -18,26 +18,13 @@ The system follows Clean Architecture principles with the following structure:
 - Go 1.24.4 or higher
 
 
-### PostgreSQL Setup
-1. Install PostgreSQL 12 or higher
-2. Create a database named `casino_db`
-3. Use the following credentials:
-   - Username: `login`
-   - Password: `password`
-   - Database: `casino_db`
-   - Host: `localhost`
-   - Port: `5432`
-
-### Kafka Setup
-1. Install Kafka 2.8 or higher
-2. Start Zookeeper and Kafka brokers
-3. Create topic: `casino-transactions-stream`
+### Setup
+   For your convenience, I leave the docker-compose I used for testing the app.
 
 
 ## Features
 
 - Clean Architecture implementation
-- SOLID principles adherence
 - Asynchronous message processing with Kafka
 - PostgreSQL database storage
 - RESTful API with JSON responses

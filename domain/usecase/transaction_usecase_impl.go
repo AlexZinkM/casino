@@ -4,6 +4,7 @@ import (
 	"casino/boundary/dto"
 	"casino/boundary/repo_model"
 	"casino/boundary/repository"
+	"casino/utils"
 	"fmt"
 )
 
@@ -24,7 +25,7 @@ func (uc *TransactionUseCaseImpl) ProcessTransaction(dto *dto.CreateTransactionD
 	}
 
 	if existingTransaction != nil {
-		return fmt.Errorf("trans with id %s alredy exists", dto.ID)
+		return &utils.TransactionAlreadyExistsError{TransactionID: dto.ID}
 	}
 
 	entity := dto.ToEntity()

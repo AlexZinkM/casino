@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"casino/boundary/dto"
 	"casino/boundary/logging"
 	"casino/boundary/usecase"
+	"casino/utils"
 
 	"github.com/segmentio/kafka-go"
 )
@@ -73,17 +75,28 @@ func (kc *KafkaConsumer) Start(ctx context.Context) {
 				Amount:          transactionMsg.Amount,
 			}
 
-			if err := kc.useCase.ProcessTransaction(createDto); err != nil {
-				if err.Error() != "trans with id "+transactionMsg.ID+" alredy exists" {
-					kc.logger.Error(ctx, err)
-					continue
+			maxRetries := 3
+			var processErr error
+
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+
+				processErr = kc.useCase.ProcessTransaction(createDto)
+				
+				if utils.IsDatabaseConnectionError(processErr) {
+					if attempt < maxRetries {
+						time.Sleep(3 * time.Second)
+						continue
+					}
 				}
-				kc.logger.Error(ctx, err)
-				_ = kc.reader.CommitMessages(ctx, message)
-				continue
+				break
 			}
 
-			kc.logger.Info(ctx, "trans " + transactionMsg.ID + " saved")
+			if processErr != nil {
+				kc.logger.Error(ctx, processErr)
+			} else {
+				kc.logger.Info(ctx, "trans " + createDto.ID + " saved")
+			}
+
 			_ = kc.reader.CommitMessages(ctx, message)
 		}
 	}

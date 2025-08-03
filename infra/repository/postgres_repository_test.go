@@ -820,7 +820,7 @@ func TestPostgresTransactionRepository_GetByID_DatabaseError(t *testing.T) {
 		t.Error("Expected error, got nil")
 	}
 
-	if err.Error() != "failed to get transaction by id: database connection error" {
+	if err.Error() != "database connection error" {
 		t.Errorf("Expected specific error message, got %v", err)
 	}
 
@@ -895,7 +895,7 @@ func TestPostgresTransactionRepository_GetByID_InvalidUUID(t *testing.T) {
 		t.Error("Expected error for invalid UUID")
 	}
 
-	if err.Error() != "failed to get transaction by id: invalid input syntax for type uuid" {
+	if err.Error() != "invalid input syntax for type uuid" {
 		t.Errorf("Expected specific error message, got %v", err)
 	}
 
@@ -938,19 +938,19 @@ func TestPostgresTransactionRepository_ErrorHandling_GetByID(t *testing.T) {
 		{
 			name:            "connection timeout",
 			errorMessage:    "connection timeout",
-			expectedError:   "failed to get transaction by id: connection timeout",
+			expectedError:   "connection timeout",
 			shouldReturnNil: false,
 		},
 		{
 			name:            "table not found",
 			errorMessage:    "table not found",
-			expectedError:   "failed to get transaction by id: table not found",
+			expectedError:   "table not found",
 			shouldReturnNil: false,
 		},
 		{
 			name:            "permission denied",
 			errorMessage:    "permission denied",
-			expectedError:   "failed to get transaction by id: permission denied",
+			expectedError:   "permission denied",
 			shouldReturnNil: false,
 		},
 	}

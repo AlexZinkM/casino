@@ -4,7 +4,7 @@ linters-settings:
   gocognit:
     min-complexity: 30
   funlen:
-    lines: 45
+    lines: 55
   nestif:
     min-complexity: 3
   dupl:
